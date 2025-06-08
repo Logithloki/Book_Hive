@@ -1,11 +1,12 @@
+// book_section.dart
+
 import 'package:flutter/material.dart';
-import '../../model/book.dart'; 
-import '../screens/book_details.dart'; 
+import '../../models/book.dart'; // Import the new Book model
+import '../screens/book_details.dart'; // Import book details page function
 
 class BookSection extends StatelessWidget {
   final String title;
   final List<Book> books;
-
   const BookSection({super.key, required this.title, required this.books});
 
   @override
@@ -33,11 +34,12 @@ class BookSection extends StatelessWidget {
 
                 return GestureDetector(
                   onTap: () {
+                    // Navigate to book details page
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) => BookDetailsPage(
-                            book: book), 
+                            book: book), // Pass the whole book object
                       ),
                     );
                   },
@@ -48,11 +50,23 @@ class BookSection extends StatelessWidget {
                       children: <Widget>[
                         ClipRRect(
                           borderRadius: BorderRadius.circular(4),
-                          child: Image.asset(
-                            book.image,
+                          child: Image.network(
+                            book.coverUrl,
                             width: 120,
                             height: 150,
                             fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                width: 120,
+                                height: 150,
+                                color: Colors.grey[300],
+                                child: const Icon(
+                                  Icons.book,
+                                  size: 40,
+                                  color: Colors.grey,
+                                ),
+                              );
+                            },
                           ),
                         ),
                         Expanded(
@@ -60,7 +74,7 @@ class BookSection extends StatelessWidget {
                             alignment: Alignment.topLeft,
                             padding: const EdgeInsets.all(5),
                             child: Text(
-                              book.name,
+                              book.title,
                               style: const TextStyle(
                                   fontSize: 14, fontWeight: FontWeight.w500),
                               textAlign: TextAlign.center,

@@ -1,10 +1,111 @@
 import 'package:flutter/material.dart';
-import '../../model/book.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../../models/book.dart';
+import '../../services/cart_service.dart';
+import '../../services/auth_service.dart';
 
-class BookDetailsPage extends StatelessWidget {
+class BookDetailsPage extends StatefulWidget {
   final Book book;
 
   const BookDetailsPage({super.key, required this.book});
+
+  @override
+  State<BookDetailsPage> createState() => _BookDetailsPageState();
+}
+
+class _BookDetailsPageState extends State<BookDetailsPage> {
+  bool _showContactInfo = false;
+  bool _isLoadingContact = false;
+  Map<String, dynamic>? _ownerInfo;
+  bool _isAddingToCart = false;
+
+  Future<void> _toggleContactInfo() async {
+    if (_showContactInfo) {
+      setState(() {
+        _showContactInfo = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoadingContact = true;
+    });
+    try {
+      if (widget.book.userId == null || widget.book.userId!.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Owner information not available')),
+        );
+        return;
+      }
+
+      final result = await AuthService.getUserById(widget.book.userId!);
+      if (result['success'] == true) {
+        setState(() {
+          _ownerInfo = result['data'];
+          _showContactInfo = true;
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content:
+                  Text(result['message'] ?? 'Failed to load contact info')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading contact info: $e')),
+      );
+    } finally {
+      setState(() {
+        _isLoadingContact = false;
+      });
+    }
+  }
+
+  Future<void> _addToCart() async {
+    if (widget.book.id == null || widget.book.id!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Cannot add this book to cart: invalid book ID')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isAddingToCart = true;
+    });
+
+    try {
+      final result = await CartService.addToCart(widget.book.id!);
+
+      if (result['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${widget.book.title} added to cart!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Failed to add book to cart'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isAddingToCart = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -13,7 +114,7 @@ class BookDetailsPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(book.name),
+        title: Text(widget.book.title),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -22,36 +123,136 @@ class BookDetailsPage extends StatelessWidget {
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: isPortrait
-              ? _buildPortraitView(context)
-              : _buildLandscapeView(context),
+          child: Column(
+            children: [
+              if (isPortrait)
+                _buildPortraitView(context)
+              else
+                _buildLandscapeView(context),
+
+              // Contact Information Section
+              if (_showContactInfo) _buildContactInfo(),
+            ],
+          ),
         ),
       ),
     );
   }
 
+  Widget _buildContactInfo() {
+    return Container(
+      margin: const EdgeInsets.only(top: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Contact Information',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                ),
+              ),
+              TextButton(
+                onPressed: _toggleContactInfo,
+                child: const Text('Hide'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_ownerInfo != null) ...[
+            Row(
+              children: [
+                const Icon(Icons.person, color: Colors.blue),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Name: ${_ownerInfo!['name'] ?? 'N/A'}',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.phone, color: Colors.blue),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Phone: ${_ownerInfo!['phonenumber'] ?? _ownerInfo!['phone'] ?? 'N/A'}',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+              ],
+            ),
+            if (_ownerInfo!['email'] != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.email, color: Colors.blue),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Email: ${_ownerInfo!['email']}',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ] else
+            const Text('Contact information not available'),
+        ],
+      ),
+    );
+  }
+
+  /// 📱 **Portrait Layout**
   Widget _buildPortraitView(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start, 
+      crossAxisAlignment: CrossAxisAlignment.start, // Left-align text
       children: [
+        // Centering the Book Image
         Center(
-          child: Image.asset(
-            book.image,
-            height: 250,
-            fit: BoxFit.cover,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: CachedNetworkImage(
+              imageUrl: widget.book.coverUrl,
+              height: 250,
+              fit: BoxFit.cover,
+              placeholder: (context, url) => Container(
+                height: 250,
+                color: Colors.grey[300],
+                child: const Center(child: CircularProgressIndicator()),
+              ),
+              errorWidget: (context, url, error) => Image.asset(
+                'assets/images/Macbeth.jpg',
+                height: 250,
+                fit: BoxFit.cover,
+              ),
+            ),
           ),
         ),
-        const SizedBox(height: 10),
-
+        const SizedBox(height: 10), // Left-aligned Book Details
         Text(
-          book.name,
+          widget.book.title,
           style: const TextStyle(
               fontFamily: 'Roboto', fontSize: 24, fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 5),
 
         Text(
-          "LKR ${book.price}",
+          "LKR ${widget.book.price}",
           style: const TextStyle(
               fontFamily: 'Roboto',
               fontSize: 18,
@@ -61,101 +262,206 @@ class BookDetailsPage extends StatelessWidget {
         const SizedBox(height: 5),
 
         Text(
-          "By ${book.author}",
+          "By ${widget.book.author}",
           style: const TextStyle(
               fontFamily: 'Roboto', fontSize: 17, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 10),
 
         Text(
-          book.description,
+          widget.book.description.isNotEmpty
+              ? widget.book.description
+              : "No description available.",
           style: const TextStyle(
-              fontFamily: 'Roboto', fontSize: 16, fontWeight: FontWeight.w700),
+              fontFamily: 'Roboto', fontSize: 16, fontWeight: FontWeight.w400),
         ),
-        const SizedBox(height: 20),
 
+        const SizedBox(height: 16),
+
+        // Additional Book Details
+        _buildDetail("Category", widget.book.category),
+        _buildDetail("Pages", "${widget.book.pages}"),
+        _buildDetail("Condition", widget.book.condition),
+        _buildDetail("Year", "${widget.book.year}"),
+        _buildDetail("Language", widget.book.language),
+        const SizedBox(height: 20), // Buttons: Add to Cart & Phone Number
         Row(
           children: [
-            _buildButton(context, "Add to Cart", Icons.shopping_cart,
-                Colors.orangeAccent.shade200),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _isAddingToCart ? null : _addToCart,
+                icon: _isAddingToCart
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.shopping_cart, size: 18),
+                label: Text(_isAddingToCart ? "Adding..." : "Add to Cart"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                ),
+              ),
+            ),
             const SizedBox(width: 10),
-            _buildButton(context, "Phone Number", Icons.phone,
-                Colors.blueAccent.shade200),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _isLoadingContact ? null : _toggleContactInfo,
+                icon: _isLoadingContact
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        _showContactInfo ? Icons.visibility_off : Icons.phone,
+                        size: 18),
+                label: Text(_isLoadingContact
+                    ? "Loading..."
+                    : _showContactInfo
+                        ? "Hide Contact"
+                        : "Contact Info"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent.shade200,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                ),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 20),
 
+        // Suggested Books Section
         _buildSuggestedBooks(context),
       ],
     );
   }
 
+  /// 💻 **Landscape Layout**
   Widget _buildLandscapeView(BuildContext context) {
     return Column(
       children: [
         Row(
           children: [
+            // Left Side: Book Image (Centered vertically)
             Expanded(
               flex: 4,
               child: Center(
-                child: Image.asset(
-                  book.image,
-                  height: 200,
-                  fit: BoxFit.cover,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: CachedNetworkImage(
+                    imageUrl: widget.book.coverUrl,
+                    height: 200,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(
+                      height: 200,
+                      color: Colors.grey[300],
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                    errorWidget: (context, url, error) => Image.asset(
+                      'assets/images/default_book.jpg',
+                      height: 200,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
               ),
             ),
             const SizedBox(width: 16),
 
+            // Right Side: Book Details (Left-aligned text)
             Expanded(
               flex: 6,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    book.name,
+                    widget.book.title,
                     style: const TextStyle(
-                        fontFamily: 'Roboto',
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800),
+                        fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 5),
 
                   Text(
-                    "LKR ${book.price}",
+                    "LKR ${widget.book.price}",
                     style: const TextStyle(
-                        fontFamily: 'Roboto',
                         fontSize: 18,
                         color: Colors.orange,
-                        fontWeight: FontWeight.w700),
+                        fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 5),
 
                   Text(
-                    "By ${book.author}",
+                    "By ${widget.book.author}",
                     style: const TextStyle(
-                        fontFamily: 'Roboto',
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700),
+                        fontSize: 16, fontStyle: FontStyle.italic),
                   ),
                   const SizedBox(height: 10),
 
                   Text(
-                    book.description,
-                    style: const TextStyle(
-                        fontFamily: 'Roboto',
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700),
+                    widget.book.description,
+                    style: const TextStyle(fontSize: 14),
                   ),
-                  const SizedBox(height: 20),
-
+                  const SizedBox(
+                      height: 20), // Buttons: Add to Cart & Phone Number
                   Row(
                     children: [
-                      _buildButton(context, "Add to Cart", Icons.shopping_cart,
-                          Colors.green),
-                      const SizedBox(width: 10),
-                      _buildButton(
-                          context, "Phone Number", Icons.phone, Colors.blue),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _isAddingToCart ? null : _addToCart,
+                          icon: _isAddingToCart
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.shopping_cart, size: 16),
+                          label: Text(
+                              _isAddingToCart ? "Adding..." : "Add to Cart"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed:
+                              _isLoadingContact ? null : _toggleContactInfo,
+                          icon: _isLoadingContact
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : Icon(
+                                  _showContactInfo
+                                      ? Icons.visibility_off
+                                      : Icons.phone,
+                                  size: 16),
+                          label: Text(_isLoadingContact
+                              ? "Loading..."
+                              : _showContactInfo
+                                  ? "Hide"
+                                  : "Contact"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -165,117 +471,13 @@ class BookDetailsPage extends StatelessWidget {
         ),
         const SizedBox(height: 20),
 
+        // Suggested Books Section
         _buildSuggestedBooks(context),
       ],
     );
   }
 
-  Widget _buildButton(
-      BuildContext context, String text, IconData icon, Color color) {
-    return ElevatedButton.icon(
-      onPressed: () {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("$text clicked")));
-      },
-      icon: Icon(icon, size: 18),
-      label: Text(text),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-      ),
-    );
-  }
-
   Widget _buildSuggestedBooks(BuildContext context) {
-    List<Book> suggestedBooks = [
-      Book(
-        bookid: 1,
-        name: 'A Borrowed Path',
-        image: 'assets/images/A Borrowed Path.jpg',
-        author: 'Unknown',
-        description: 'A journey of self-discovery and resilience.',
-        price: 1800,
-        category: 'Fiction',
-        condition: 'Good',
-        year: 2020,
-        language: 'English',
-        numberOfPages: 320,
-        forWhat: 'Sell',
-      ),
-      Book(
-        bookid: 2,
-        name: 'Beautiful Lies',
-        image: 'assets/images/Beautiful Lies.jpg',
-        author: 'Lisa Unger',
-        description: 'A gripping psychological thriller full of twists.',
-        price: 2200,
-        category: 'Thriller',
-        condition: 'New',
-        year: 2021,
-        language: 'English',
-        numberOfPages: 400,
-        forWhat: 'Sell',
-      ),
-      Book(
-        bookid: 3,
-        name: 'Echo in Time',
-        image: 'assets/images/Echo in time.jpg',
-        author: 'Boo Walker',
-        description:
-            'A time travel romance that will have you on the edge of your seat!',
-        price: 2000,
-        category: 'Romance',
-        condition: 'Fair',
-        year: 2018,
-        language: 'English',
-        numberOfPages: 350,
-        forWhat: 'Exchange',
-      ),
-      Book(
-        bookid: 4,
-        name: 'Echo of Old Book',
-        image: 'assets/images/EchoofOldBook.jpg',
-        author: 'Unknown',
-        description: 'A story lost in the past, waiting to be rediscovered.',
-        price: 1900,
-        category: 'Mystery',
-        condition: 'Poor',
-        year: 2017,
-        language: 'English',
-        numberOfPages: 250,
-        forWhat: 'Rent',
-      ),
-      Book(
-        bookid: 5,
-        name: 'Macbeth',
-        image: 'assets/images/Macbeth.jpg',
-        author: 'William Shakespeare',
-        description: 'A classic tragedy of power, ambition, and fate.',
-        price: 1500,
-        category: 'Drama',
-        condition: 'Good',
-        year: 2015,
-        language: 'English',
-        numberOfPages: 180,
-        forWhat: 'Sell',
-      ),
-      Book(
-        bookid: 6,
-        name: 'Never Ending Sky',
-        image: 'assets/images/Never ending sky.jpg',
-        author: 'Unknown',
-        description: 'An inspiring tale of endless possibilities.',
-        price: 1700,
-        category: 'Fiction',
-        condition: 'Good',
-        year: 2019,
-        language: 'English',
-        numberOfPages: 310,
-        forWhat: 'Exchange',
-      )
-    ];
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -286,58 +488,139 @@ class BookDetailsPage extends StatelessWidget {
         ),
         const SizedBox(height: 20),
 
-        SizedBox(
-          height: 160,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: suggestedBooks.length,
-            itemBuilder: (context, index) {
-              final suggestedBook = suggestedBooks[index];
+        // Use FutureBuilder to load suggested books from API
+        FutureBuilder<List<Book>>(
+          future: Book.getLatestBooksAsync(limit: 6),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const SizedBox(
+                height: 160,
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
 
-              return GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          BookDetailsPage(book: suggestedBook),
-                    ),
-                  );
-                },
-                child: Container(
-                  width: 120,
-                  margin: const EdgeInsets.only(right: 10),
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start, 
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: Image.asset(
-                          suggestedBook.image,
-                          width: 120,
-                          height: 130,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        suggestedBook.name,
-                        style: const TextStyle(
-                            fontFamily: 'Roboto',
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 2,
-                      ),
-                    ],
+            if (snapshot.hasError) {
+              return SizedBox(
+                height: 160,
+                child: Center(
+                  child: Text(
+                    'Error loading suggested books',
+                    style: TextStyle(color: Colors.grey[600]),
                   ),
                 ),
               );
-            },
-          ),
+            }
+
+            final suggestedBooks = snapshot.data ?? [];
+
+            if (suggestedBooks.isEmpty) {
+              return SizedBox(
+                height: 160,
+                child: Center(
+                  child: Text(
+                    'No suggested books available',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                ),
+              );
+            }
+
+            return SizedBox(
+              height: 160,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: suggestedBooks.length,
+                itemBuilder: (context, index) {
+                  final suggestedBook = suggestedBooks[index];
+
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              BookDetailsPage(book: suggestedBook),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: 120,
+                      margin: const EdgeInsets.only(right: 10),
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start, // Left-align text
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: CachedNetworkImage(
+                              imageUrl: suggestedBook.coverUrl,
+                              width: 120,
+                              height: 130,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => Container(
+                                width: 120,
+                                height: 130,
+                                color: Colors.grey[300],
+                                child: const Center(
+                                    child: CircularProgressIndicator()),
+                              ),
+                              errorWidget: (context, url, error) => Image.asset(
+                                'assets/images/default_book.jpg',
+                                width: 120,
+                                height: 130,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            suggestedBook.title,
+                            style: const TextStyle(
+                                fontFamily: 'Roboto',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 2,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            );
+          },
         ),
       ],
+    );
+  }
+
+  Widget _buildDetail(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "$label: ",
+            style: const TextStyle(
+              fontFamily: 'Roboto',
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontFamily: 'Roboto',
+                fontSize: 16,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

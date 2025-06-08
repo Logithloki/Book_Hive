@@ -33,6 +33,16 @@ dependencies:
 
   provider: ^6.0.1
   animate_do: ^2.1.0
+  image_picker: ^1.1.2
+  permission_handler: ^11.0.1
+  http: ^1.4.0
+  shared_preferences: ^2.3.3
+  connectivity_plus: ^5.0.2
+  sensors_plus: ^4.0.2
+  cached_network_image: ^3.3.1
+  speech_to_text: ^7.0.0
+
+
 
 
   # The following adds the Cupertino Icons font to your application.

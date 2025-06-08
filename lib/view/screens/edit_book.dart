@@ -1,30 +1,36 @@
+// ignore_for_file: prefer_const_constructors
+
 import 'package:flutter/material.dart';
 import 'dart:io'; // For image handling
 import 'package:image_picker/image_picker.dart';
 import '../../services/book_service.dart';
+import '../../models/book.dart';
 
-class AddBookPage extends StatefulWidget {
-  const AddBookPage({super.key});
+class EditBookPage extends StatefulWidget {
+  final Book book;
+
+  const EditBookPage({super.key, required this.book});
 
   @override
-  _AddBookPageState createState() => _AddBookPageState();
+  _EditBookPageState createState() => _EditBookPageState();
 }
 
-class _AddBookPageState extends State<AddBookPage> {
+class _EditBookPageState extends State<EditBookPage> {
   final _formKey = GlobalKey<FormState>();
   final ImagePicker _picker = ImagePicker();
   File? _image;
-  String _title = '';
-  String _author = '';
-  String _category = 'Fiction'; // Default value
-  String _condition = 'New'; // Default condition
-  String _year = DateTime.now().year.toString();
-  String _language = 'English';
-  String _numberOfPages = '';
-  String _for = 'Sell'; // Default listing type
-  double _price = 0.0; // For Sell option
-  int _rentalDays = 7; // For Rental option, default 7 days
-  String _exchangeCategory = 'Fiction'; // For Exchange option
+  late String _title;
+  late String _author;
+  late String _category;
+  late String _condition;
+  late String _year;
+  late String _language;
+  late String _numberOfPages;
+  late String _for;
+  late double _price;
+  late int _rentalDays;
+  late String _exchangeCategory;
+  late String _description;
   bool _isLoading = false;
 
   // Categories list for the dropdown
@@ -39,6 +45,23 @@ class _AddBookPageState extends State<AddBookPage> {
   // Conditions for the book
   final List<String> _conditions = ['New', 'Good', 'Fair', 'Poor'];
 
+  @override
+  void initState() {
+    super.initState();
+    _title = widget.book.title;
+    _author = widget.book.author;
+    _category = widget.book.category;
+    _condition = widget.book.condition;
+    _year = widget.book.year.toString();
+    _language = widget.book.language;
+    _numberOfPages = widget.book.pages.toString();
+    _for = widget.book.type;
+    _price = widget.book.price;
+    _rentalDays = widget.book.rentalDays;
+    _exchangeCategory = widget.book.exchangeCategory;
+    _description = widget.book.description;
+  }
+
   // Method to handle form submission
   Future<void> _submitForm() async {
     if (_formKey.currentState!.validate()) {
@@ -49,64 +72,39 @@ class _AddBookPageState extends State<AddBookPage> {
       });
 
       try {
-        // Create base book data
-        final Map<String, dynamic> bookData = {
-          'title': _title,
-          'author': _author,
-          'category': _category,
-          'condition': _condition,
-          'year': int.parse(_year),
-          'language': _language,
-          'pages': int.parse(_numberOfPages),
-          'type': _for,
-          'payment': 'cash', // Default payment method
-          'description': '', // Default empty description
-        };
-
-        // Add listing type specific data
-        switch (_for) {
-          case 'Sell':
-            bookData['price'] = _price;
-            bookData['rental_days'] = 0;
-            bookData['exchange_category'] = '';
-            break;
-          case 'Rent':
-            bookData['price'] = 0.0;
-            bookData['rental_days'] = _rentalDays;
-            bookData['exchange_category'] = '';
-            break;
-          case 'Exchange':
-            bookData['price'] = 0.0;
-            bookData['rental_days'] = 0;
-            bookData['exchange_category'] = _exchangeCategory;
-            break;
+        // Convert book ID to int from the original string ID
+        final bookId = int.tryParse(widget.book.id ?? '0') ?? 0;
+        if (bookId <= 0) {
+          throw Exception('Invalid book ID');
         }
 
-        // Call the book service to create the book
-        final result = await BookService.createBook(
-          title: bookData['title'],
-          author: bookData['author'],
+        // Call the book service to update the book
+        final result = await BookService.updateBook(
+          bookId: bookId,
+          title: _title,
+          author: _author,
           isbn: '', // Not required for now
-          category: bookData['category'],
-          price: bookData['price'] as double,
-          condition: bookData['condition'],
-          description: bookData['description'],
+          category: _category,
+          price: _price,
+          condition: _condition,
+          description: _description,
+          // Add additional fields as needed
         );
 
         if (result['success'] == true) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Book added successfully!'),
+              content: Text('Book updated successfully!'),
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.pop(context);
+          Navigator.pop(context, true); // Return true to indicate success
         } else {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(result['message'] ?? 'Failed to add book'),
+              content: Text(result['message'] ?? 'Failed to update book'),
               backgroundColor: Colors.red,
             ),
           );
@@ -133,7 +131,7 @@ class _AddBookPageState extends State<AddBookPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add Book'),
+        title: const Text('Edit Book'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -178,24 +176,57 @@ class _AddBookPageState extends State<AddBookPage> {
                                     fit: BoxFit.cover,
                                   ),
                                 )
-                              : Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: const [
-                                    Icon(
-                                      Icons.add_photo_alternate,
-                                      size: 50,
-                                      color: Colors.grey,
-                                    ),
-                                    SizedBox(height: 10),
-                                    Text(
-                                      'Add Book Cover',
-                                      style: TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 16,
+                              : widget.book.cover.startsWith('http')
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Image.network(
+                                        widget.book.cover,
+                                        width: 200,
+                                        height: 200,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (context, error, stackTrace) {
+                                          return Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: const [
+                                              Icon(
+                                                Icons.add_photo_alternate,
+                                                size: 50,
+                                                color: Colors.grey,
+                                              ),
+                                              SizedBox(height: 10),
+                                              Text(
+                                                'Edit Book Cover',
+                                                style: TextStyle(
+                                                  color: Colors.grey,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        },
                                       ),
+                                    )
+                                  : Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: const [
+                                        Icon(
+                                          Icons.add_photo_alternate,
+                                          size: 50,
+                                          color: Colors.grey,
+                                        ),
+                                        SizedBox(height: 10),
+                                        Text(
+                                          'Edit Book Cover',
+                                          style: TextStyle(
+                                            color: Colors.grey,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
                         ),
                       ),
                     ),
@@ -203,6 +234,7 @@ class _AddBookPageState extends State<AddBookPage> {
 
                     // Title Field
                     TextFormField(
+                      initialValue: _title,
                       decoration: const InputDecoration(
                         labelText: 'Title',
                         hintText: 'Enter book title',
@@ -222,6 +254,7 @@ class _AddBookPageState extends State<AddBookPage> {
 
                     // Author Field
                     TextFormField(
+                      initialValue: _author,
                       decoration: const InputDecoration(
                         labelText: 'Author',
                         hintText: 'Enter author name',
@@ -235,27 +268,6 @@ class _AddBookPageState extends State<AddBookPage> {
                       },
                       onSaved: (value) {
                         _author = value ?? '';
-                      },
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Condition Dropdown
-                    DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(
-                        labelText: 'Condition',
-                        border: OutlineInputBorder(),
-                      ),
-                      value: _condition,
-                      items: _conditions.map((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(value),
-                        );
-                      }).toList(),
-                      onChanged: (String? value) {
-                        setState(() {
-                          _condition = value ?? 'New';
-                        });
                       },
                     ),
                     const SizedBox(height: 20),
@@ -281,8 +293,30 @@ class _AddBookPageState extends State<AddBookPage> {
                     ),
                     const SizedBox(height: 20),
 
+                    // Condition Dropdown
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(
+                        labelText: 'Condition',
+                        border: OutlineInputBorder(),
+                      ),
+                      value: _condition,
+                      items: _conditions.map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
+                      onChanged: (String? value) {
+                        setState(() {
+                          _condition = value ?? 'New';
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 20),
+
                     // Number of Pages Field
                     TextFormField(
+                      initialValue: _numberOfPages,
                       decoration: const InputDecoration(
                         labelText: 'Number of Pages',
                         hintText: 'Enter number of pages',
@@ -307,12 +341,12 @@ class _AddBookPageState extends State<AddBookPage> {
 
                     // Year Field
                     TextFormField(
+                      initialValue: _year,
                       decoration: const InputDecoration(
                         labelText: 'Publication Year',
                         hintText: 'Enter publication year',
                         border: OutlineInputBorder(),
                       ),
-                      initialValue: _year,
                       keyboardType: TextInputType.number,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -334,12 +368,12 @@ class _AddBookPageState extends State<AddBookPage> {
 
                     // Language Field
                     TextFormField(
+                      initialValue: _language,
                       decoration: const InputDecoration(
                         labelText: 'Language',
                         hintText: 'Enter book language',
                         border: OutlineInputBorder(),
                       ),
-                      initialValue: _language,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Please enter the book language';
@@ -348,6 +382,21 @@ class _AddBookPageState extends State<AddBookPage> {
                       },
                       onSaved: (value) {
                         _language = value ?? 'English';
+                      },
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Description Field
+                    TextFormField(
+                      initialValue: _description,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                        hintText: 'Enter book description',
+                        border: OutlineInputBorder(),
+                      ),
+                      onSaved: (value) {
+                        _description = value ?? '';
                       },
                     ),
                     const SizedBox(height: 20),
@@ -477,6 +526,7 @@ class _AddBookPageState extends State<AddBookPage> {
                       child: _for == 'Sell'
                           ? TextFormField(
                               key: const ValueKey('price'),
+                              initialValue: _price.toString(),
                               decoration: const InputDecoration(
                                 labelText: 'Price (Rs)',
                                 hintText: 'Enter selling price',
@@ -501,6 +551,7 @@ class _AddBookPageState extends State<AddBookPage> {
                           : _for == 'Rent'
                               ? TextFormField(
                                   key: const ValueKey('rental'),
+                                  initialValue: _rentalDays.toString(),
                                   decoration: const InputDecoration(
                                     labelText: 'Rental Period (Days)',
                                     hintText: 'Enter rental period in days',
@@ -508,7 +559,6 @@ class _AddBookPageState extends State<AddBookPage> {
                                     prefixIcon: Icon(Icons.calendar_today),
                                   ),
                                   keyboardType: TextInputType.number,
-                                  initialValue: '7',
                                   validator: (value) {
                                     if (value == null || value.isEmpty) {
                                       return 'Please enter the rental period';
@@ -563,7 +613,7 @@ class _AddBookPageState extends State<AddBookPage> {
                                     CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Text(
-                                'Add Book',
+                                'Update Book',
                                 style: TextStyle(fontSize: 16),
                               ),
                       ),
