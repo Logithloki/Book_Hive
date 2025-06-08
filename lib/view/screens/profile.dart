@@ -11,6 +11,7 @@ import 'package:book_store/models/book.dart';
 import 'package:book_store/services/auth_service.dart';
 import 'package:book_store/services/book_service.dart'; // Add import for book service
 import 'package:book_store/auth_helper.dart'; // Import auth helper
+import 'package:book_store/widgets/theme_settings_widget.dart'; // Import theme settings widget
 
 class ProfilePage extends StatefulWidget {
   ProfilePage({super.key});
@@ -482,9 +483,7 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               SizedBox(height: 20),
 
-              _buildSuggestedBooks(context),
-
-              SizedBox(height: 40),
+              _buildSuggestedBooks(context), SizedBox(height: 40),
               FadeInDown(
                 duration: Duration(milliseconds: 1900),
                 child: Row(
@@ -504,6 +503,13 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ],
                 ),
+              ),
+
+              SizedBox(height: 20),
+              // Theme Settings Widget
+              FadeInDown(
+                duration: Duration(milliseconds: 2000),
+                child: const ThemeSettingsWidget(),
               ),
             ],
           ),
@@ -667,42 +673,45 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildBookImage(String imageUrl, {double? width, double? height}) {
-    if (imageUrl.startsWith('http')) {
-      return CachedNetworkImage(
-        imageUrl: imageUrl,
+    if (imageUrl.isEmpty) {
+      return Image.asset(
+        'assets/images/logo.jpg',
         width: width,
         height: height,
         fit: BoxFit.cover,
-        placeholder: (context, url) =>
-            const Center(child: CircularProgressIndicator()),
-        errorWidget: (context, url, error) => Image.asset(
-          'assets/images/default_book.jpg',
-          width: width,
-          height: height,
-          fit: BoxFit.cover,
-        ),
       );
     }
 
-    String assetPath = imageUrl;
-    if (!imageUrl.startsWith('assets/')) {
-      assetPath = 'assets/images/$imageUrl';
-    }
-
-    return Image.asset(
-      assetPath,
-      width: width,
-      height: height,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) {
-        print('Error loading image: $error');
-        return Image.asset(
-          'assets/images/default_book.jpg',
-          width: width,
-          height: height,
-          fit: BoxFit.cover,
-        );
-      },
-    );
+    return imageUrl.startsWith('http')
+        ? CachedNetworkImage(
+            imageUrl: imageUrl,
+            width: width,
+            height: height,
+            fit: BoxFit.cover,
+            placeholder: (context, url) =>
+                const Center(child: CircularProgressIndicator()),
+            errorWidget: (context, url, error) => Image.asset(
+              'assets/images/logo.jpg',
+              width: width,
+              height: height,
+              fit: BoxFit.cover,
+            ),
+          )
+        : Image.asset(
+            imageUrl.startsWith('assets/')
+                ? imageUrl
+                : 'assets/images/$imageUrl',
+            width: width,
+            height: height,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Image.asset(
+                'assets/images/logo.jpg',
+                width: width,
+                height: height,
+                fit: BoxFit.cover,
+              );
+            },
+          );
   }
 }

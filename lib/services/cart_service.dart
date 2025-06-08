@@ -78,12 +78,12 @@ class CartService {
   }
 
   // Remove book from cart
-  static Future<Map<String, dynamic>> removeFromCart(String bookId) async {
+  static Future<Map<String, dynamic>> removeFromCart(String cartId) async {
     try {
-      final response = await http.delete(
+      final response = await http.post(
         Uri.parse('$baseUrl/cart/remove'),
         headers: await AuthService.getAuthHeaders(),
-        body: jsonEncode({'book_id': bookId}),
+        body: jsonEncode({'cart_id': cartId}),
       );
 
       final responseData = jsonDecode(response.body);
@@ -112,7 +112,7 @@ class CartService {
   // Clear entire cart
   static Future<Map<String, dynamic>> clearCart() async {
     try {
-      final response = await http.delete(
+      final response = await http.post(
         Uri.parse('$baseUrl/cart/clear'),
         headers: await AuthService.getAuthHeaders(),
       );

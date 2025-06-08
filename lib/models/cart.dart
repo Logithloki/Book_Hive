@@ -13,7 +13,7 @@ class Cart {
 
   // Additional properties for cart functionality
   Book? book; // Associated book object
-  
+
   // Define fillable properties according to your database schema
   static const List<String> fillable = [
     'user_id',
@@ -30,12 +30,11 @@ class Cart {
     this.updatedAt,
     this.book,
   });
-
   factory Cart.fromJson(Map<String, dynamic> json) {
     return Cart(
       id: json['id']?.toString() ?? json['_id']?.toString(),
-      userId: json['user_id'] ?? '',
-      bookId: json['book_id'] ?? '',
+      userId: json['user_id']?.toString() ?? '',
+      bookId: json['book_id']?.toString() ?? '',
       quantity: _parseInt(json['quantity']),
       createdAt: _parseDateTime(json['created_at']),
       updatedAt: _parseDateTime(json['updated_at']),
@@ -158,12 +157,12 @@ class Cart {
   Future<Cart?> updateQuantityAsync(int newQuantity) async {
     try {
       await Future.delayed(Duration(milliseconds: 150));
-      
+
       final updatedCart = copyWith(
         quantity: newQuantity,
         updatedAt: DateTime.now(),
       );
-      
+
       print('Cart item quantity updated to $newQuantity');
       return updatedCart;
     } catch (e) {

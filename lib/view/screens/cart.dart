@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/cart_service.dart';
-import '../../models/book.dart';
+import '../../models/cart.dart';
 import '../../widgets/connectivity_status.dart';
 
 class CartPage extends StatefulWidget {
@@ -11,7 +11,7 @@ class CartPage extends StatefulWidget {
 }
 
 class _CartPageState extends State<CartPage> {
-  final List<Book> _cartItems = [];
+  final List<Cart> _cartItems = [];
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -29,13 +29,12 @@ class _CartPageState extends State<CartPage> {
 
     try {
       final result = await CartService.getCart();
-
       if (result['success'] == true) {
         final cartData = result['data']['items'] as List;
         setState(() {
           _cartItems.clear();
-          _cartItems.addAll(
-              cartData.map((item) => Book.fromJson(item['book'])).toList());
+          _cartItems
+              .addAll(cartData.map((item) => Cart.fromJson(item)).toList());
         });
       } else {
         setState(() {
@@ -53,11 +52,11 @@ class _CartPageState extends State<CartPage> {
     }
   }
 
-  Future<void> _removeFromCart(Book book) async {
-    if (book.id == null) {
+  Future<void> _removeFromCart(Cart cartItem) async {
+    if (cartItem.id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Cannot remove this item: invalid book ID')),
+            content: Text('Cannot remove this item: invalid cart ID')),
       );
       return;
     }
@@ -67,15 +66,17 @@ class _CartPageState extends State<CartPage> {
     });
 
     try {
-      final result = await CartService.removeFromCart(book.id!);
+      final result = await CartService.removeFromCart(cartItem.id!);
 
       if (result['success'] == true) {
         setState(() {
-          _cartItems.removeWhere((item) => item.id == book.id);
+          _cartItems.removeWhere((item) => item.id == cartItem.id);
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${book.title} removed from cart')),
+          SnackBar(
+              content:
+                  Text('${cartItem.book?.title ?? 'Item'} removed from cart')),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -95,14 +96,14 @@ class _CartPageState extends State<CartPage> {
     }
   }
 
-  void _showRemoveDialog(Book book) {
+  void _showRemoveDialog(Cart cartItem) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Remove from Cart'),
           content: Text(
-              'Are you sure you want to remove "${book.title}" from your cart?'),
+              'Are you sure you want to remove "${cartItem.book?.title ?? 'this item'}" from your cart?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -111,7 +112,7 @@ class _CartPageState extends State<CartPage> {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                _removeFromCart(book);
+                _removeFromCart(cartItem);
               },
               style: TextButton.styleFrom(
                 foregroundColor: Colors.red,
@@ -122,6 +123,67 @@ class _CartPageState extends State<CartPage> {
         );
       },
     );
+  }
+
+  Widget _buildBookImage(String imageUrl, {double? width, double? height}) {
+    if (imageUrl.isEmpty) {
+      return Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: Colors.grey[300],
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Icon(
+          Icons.book,
+          color: Colors.grey,
+        ),
+      );
+    }
+
+    return imageUrl.startsWith('http')
+        ? Image.network(
+            imageUrl,
+            width: width,
+            height: height,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                width: width,
+                height: height,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.book,
+                  color: Colors.grey,
+                ),
+              );
+            },
+          )
+        : Image.asset(
+            imageUrl.startsWith('assets/')
+                ? imageUrl
+                : 'assets/images/$imageUrl',
+            width: width,
+            height: height,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                width: width,
+                height: height,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.book,
+                  color: Colors.grey,
+                ),
+              );
+            },
+          );
   }
 
   @override
@@ -221,10 +283,11 @@ class _CartPageState extends State<CartPage> {
       body: ListView.builder(
         itemCount: _cartItems.length,
         itemBuilder: (context, index) {
-          final book = _cartItems[index];
+          final cartItem = _cartItems[index];
+          final book = cartItem.book;
           return Dismissible(
-            key: Key(book.id ?? ''),
-            onDismissed: (direction) => _removeFromCart(book),
+            key: Key(cartItem.id ?? ''),
+            onDismissed: (direction) => _removeFromCart(cartItem),
             background: Container(
               color: Colors.red,
               alignment: Alignment.centerRight,
@@ -241,26 +304,10 @@ class _CartPageState extends State<CartPage> {
                     // Book Image
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        book.coverUrl,
+                      child: _buildBookImage(
+                        book?.coverUrl ?? '',
                         width: 60,
                         height: 80,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            width: 60,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[300],
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.book,
-                              color: Colors.grey,
-                              size: 30,
-                            ),
-                          );
-                        },
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -271,7 +318,7 @@ class _CartPageState extends State<CartPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            book.title,
+                            book?.title ?? 'Unknown Title',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -281,7 +328,7 @@ class _CartPageState extends State<CartPage> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'by ${book.author}',
+                            'by ${book?.author ?? 'Unknown Author'}',
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey[600],
@@ -289,7 +336,7 @@ class _CartPageState extends State<CartPage> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'LKR ${book.price.toStringAsFixed(2)}',
+                            'LKR ${book?.price.toStringAsFixed(2) ?? '0.00'}',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -302,7 +349,7 @@ class _CartPageState extends State<CartPage> {
 
                     // Remove Button
                     IconButton(
-                      onPressed: () => _showRemoveDialog(book),
+                      onPressed: () => _showRemoveDialog(cartItem),
                       icon: const Icon(
                         Icons.delete,
                         color: Colors.red,

@@ -34,7 +34,8 @@ class MicrophoneService {
     if (!hasPermission) {
       onError('Microphone permission denied');
       return;
-    }    try {
+    }
+    try {
       await _speechToText.listen(
         onResult: (result) {
           if (result.finalResult) {

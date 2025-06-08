@@ -222,16 +222,28 @@ class AuthService {
   // Get user by ID
   static Future<Map<String, dynamic>> getUserById(String userId) async {
     try {
+      print('Getting user by ID: $userId');
       final headers = await getAuthHeaders();
       final response = await http.get(
         Uri.parse('$baseUrl/users/$userId'),
         headers: headers,
       );
 
+      print('getUserById response status: ${response.statusCode}');
+      print('getUserById response body: ${response.body}');
+
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        return {'success': true, 'data': responseData};
+        // Check if the response has the expected structure
+        if (responseData['success'] == true && responseData['data'] != null) {
+          print('User data retrieved successfully: ${responseData['data']}');
+          return {'success': true, 'data': responseData['data']};
+        } else {
+          // Handle case where API returns data directly without wrapper
+          print('Direct user data response: $responseData');
+          return {'success': true, 'data': responseData};
+        }
       } else {
         return {
           'success': false,
@@ -239,6 +251,7 @@ class AuthService {
         };
       }
     } catch (e) {
+      print('getUserById error: $e');
       return {
         'success': false,
         'message': 'Network error: $e',

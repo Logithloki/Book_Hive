@@ -32,22 +32,29 @@ class _EditBookPageState extends State<EditBookPage> {
   late String _exchangeCategory;
   late String _description;
   bool _isLoading = false;
-
   // Categories list for the dropdown
   final List<String> _categories = [
     'Fiction',
     'Non-Fiction',
     'Science',
     'History',
-    'Biography'
+    'Biography',
+    'Romance'
   ];
 
   // Conditions for the book
   final List<String> _conditions = ['New', 'Good', 'Fair', 'Poor'];
-
   @override
   void initState() {
     super.initState();
+    // Debug: Print all book information
+    print('=== EditBookPage Debug Info ===');
+    print('Book ID: "${widget.book.id}"');
+    print('Book ID type: ${widget.book.id.runtimeType}');
+    print('Book bookid getter: ${widget.book.bookid}');
+    print('Book title: "${widget.book.title}"');
+    print('===============================');
+
     _title = widget.book.title;
     _author = widget.book.author;
     _category = widget.book.category;
@@ -70,26 +77,85 @@ class _EditBookPageState extends State<EditBookPage> {
       setState(() {
         _isLoading = true;
       });
-
       try {
-        // Convert book ID to int from the original string ID
-        final bookId = int.tryParse(widget.book.id ?? '0') ?? 0;
-        if (bookId <= 0) {
-          throw Exception('Invalid book ID');
+        // Debug: Print the book ID and type
+        print('=== Update Book Debug Info ===');
+        print('Book ID from widget.book.id: "${widget.book.id}"');
+        print('Book ID type: ${widget.book.id.runtimeType}');
+        print('===============================');
+
+        // Use the string ID directly
+        final bookId = widget.book.id;
+
+        if (bookId == null || bookId.isEmpty) {
+          throw Exception('Invalid book ID: book ID is null or empty');
         }
 
-        // Call the book service to update the book
+        // Create base book data for update
+        final Map<String, dynamic> bookData = {
+          'title': _title,
+          'author': _author,
+          'category': _category,
+          'condition': _condition,
+          'year': int.parse(_year),
+          'language': _language,
+          'pages': int.parse(_numberOfPages),
+          'type': _for,
+          'description': _description,
+        };
+
+        // Add listing type specific data
+        switch (_for) {
+          case 'Sell':
+            bookData['price'] = _price;
+            bookData['rental_days'] = null;
+            bookData['exchange_category'] = null;
+            break;
+          case 'Rent':
+            bookData['price'] = 0.0;
+            bookData['rental_days'] = _rentalDays;
+            bookData['exchange_category'] = null;
+            break;
+          case 'Exchange':
+            bookData['price'] = 0.0;
+            bookData['rental_days'] = null;
+            bookData['exchange_category'] = _exchangeCategory;
+            break;
+        } // Call the book service to update the book
         final result = await BookService.updateBook(
           bookId: bookId,
           title: _title,
           author: _author,
           isbn: '', // Not required for now
           category: _category,
-          price: _price,
+          price: bookData['price'] as double,
           condition: _condition,
+          type: _for,
+          pages: int.parse(_numberOfPages),
+          year: int.parse(_year),
+          language: _language,
           description: _description,
-          // Add additional fields as needed
+          rentalDays: bookData['rental_days'],
+          exchangeCategory: bookData['exchange_category'],
         );
+
+        // If book was updated successfully and user selected an image, upload it
+        if (result['success'] == true && _image != null) {
+          try {
+            final imageResult = await BookService.uploadBookImage(
+              bookId: bookId,
+              imagePath: _image!.path,
+            );
+
+            if (imageResult['success'] != true) {
+              print('Image upload failed: ${imageResult['message']}');
+              // Don't show error to user since book was updated successfully
+            }
+          } catch (e) {
+            print('Error uploading image: $e');
+            // Don't show error to user since book was updated successfully
+          }
+        }
 
         if (result['success'] == true) {
           if (!mounted) return;
@@ -123,6 +189,98 @@ class _EditBookPageState extends State<EditBookPage> {
             _isLoading = false;
           });
         }
+      }
+    }
+  } // Method to handle book deletion
+
+  Future<void> _deleteBook() async {
+    // Debug: Print the book ID and type
+    print('=== Delete Book Debug Info ===');
+    print('Book ID: "${widget.book.id}"');
+    print('Book ID type: ${widget.book.id.runtimeType}');
+    print('Book bookid getter: ${widget.book.bookid}');
+    print('=============================');
+
+    // Use the string ID directly - no need to convert to int
+    final bookId = widget.book.id;
+
+    if (bookId == null || bookId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'Cannot delete this book: invalid book ID "${widget.book.id}"'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Show confirmation dialog
+    final bool? shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete Book'),
+          content: Text(
+              'Are you sure you want to delete "${widget.book.title}"? This action cannot be undone.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete != true) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final result = await BookService.deleteBook(bookId);
+
+      if (result['success'] == true) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Book deleted successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(
+            context, 'deleted'); // Return 'deleted' to indicate deletion
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Failed to delete book'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
@@ -250,9 +408,7 @@ class _EditBookPageState extends State<EditBookPage> {
                         _title = value ?? '';
                       },
                     ),
-                    const SizedBox(height: 20),
-
-                    // Author Field
+                    const SizedBox(height: 20), // Author Field
                     TextFormField(
                       initialValue: _author,
                       decoration: const InputDecoration(
@@ -268,27 +424,6 @@ class _EditBookPageState extends State<EditBookPage> {
                       },
                       onSaved: (value) {
                         _author = value ?? '';
-                      },
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Category Dropdown
-                    DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(
-                        labelText: 'Category',
-                        border: OutlineInputBorder(),
-                      ),
-                      value: _category,
-                      items: _categories.map((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(value),
-                        );
-                      }).toList(),
-                      onChanged: (String? value) {
-                        setState(() {
-                          _category = value ?? 'Fiction';
-                        });
                       },
                     ),
                     const SizedBox(height: 20),
@@ -309,6 +444,27 @@ class _EditBookPageState extends State<EditBookPage> {
                       onChanged: (String? value) {
                         setState(() {
                           _condition = value ?? 'New';
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Category Dropdown
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(
+                        labelText: 'Category',
+                        border: OutlineInputBorder(),
+                      ),
+                      value: _category,
+                      items: _categories.map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
+                      onChanged: (String? value) {
+                        setState(() {
+                          _category = value ?? 'Fiction';
                         });
                       },
                     ),
@@ -399,9 +555,9 @@ class _EditBookPageState extends State<EditBookPage> {
                         _description = value ?? '';
                       },
                     ),
-                    const SizedBox(height: 20),
-
-                    // Listing Type (Sell, Exchange, Rent)
+                    const SizedBox(
+                        height:
+                            20), // Listing Type (Sell, Exchange, Rent) radio buttons
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -413,114 +569,25 @@ class _EditBookPageState extends State<EditBookPage> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Card(
-                                elevation: _for == 'Sell' ? 4 : 1,
-                                color: _for == 'Sell'
-                                    ? Theme.of(context)
-                                        .colorScheme
-                                        .primaryContainer
-                                    : null,
-                                child: RadioListTile<String>(
-                                  title: Column(
-                                    children: [
-                                      Icon(
-                                        Icons.sell,
-                                        size: 32,
-                                        color: _for == 'Sell'
-                                            ? Theme.of(context)
-                                                .colorScheme
-                                                .primary
-                                            : null,
-                                      ),
-                                      const Text('Sell'),
-                                    ],
-                                  ),
-                                  value: 'Sell',
-                                  groupValue: _for,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _for = value!;
-                                    });
-                                  },
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Card(
-                                elevation: _for == 'Rent' ? 4 : 1,
-                                color: _for == 'Rent'
-                                    ? Theme.of(context)
-                                        .colorScheme
-                                        .primaryContainer
-                                    : null,
-                                child: RadioListTile<String>(
-                                  title: Column(
-                                    children: [
-                                      Icon(
-                                        Icons.book,
-                                        size: 32,
-                                        color: _for == 'Rent'
-                                            ? Theme.of(context)
-                                                .colorScheme
-                                                .primary
-                                            : null,
-                                      ),
-                                      const Text('Rent'),
-                                    ],
-                                  ),
-                                  value: 'Rent',
-                                  groupValue: _for,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _for = value!;
-                                    });
-                                  },
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Card(
-                                elevation: _for == 'Exchange' ? 4 : 1,
-                                color: _for == 'Exchange'
-                                    ? Theme.of(context)
-                                        .colorScheme
-                                        .primaryContainer
-                                    : null,
-                                child: RadioListTile<String>(
-                                  title: Column(
-                                    children: [
-                                      Icon(
-                                        Icons.swap_horiz,
-                                        size: 32,
-                                        color: _for == 'Exchange'
-                                            ? Theme.of(context)
-                                                .colorScheme
-                                                .primary
-                                            : null,
-                                      ),
-                                      const Text('Exchange'),
-                                    ],
-                                  ),
-                                  value: 'Exchange',
-                                  groupValue: _for,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _for = value!;
-                                    });
-                                  },
-                                ),
-                              ),
-                            ),
-                          ],
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: ['Sell', 'Exchange', 'Rent'].map((option) {
+                            return RadioListTile<String>(
+                              title: Text(option),
+                              value: option,
+                              groupValue: _for,
+                              onChanged: (value) {
+                                setState(() {
+                                  _for = value!;
+                                });
+                              },
+                            );
+                          }).toList(),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 20),
-
-                    // Dynamic Fields based on Listing Type
+                    const SizedBox(
+                        height: 20), // Dynamic Fields based on Listing Type
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 300),
                       child: _for == 'Sell'
@@ -595,28 +662,66 @@ class _EditBookPageState extends State<EditBookPage> {
                                   },
                                 ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 30),
 
-                    // Submit Button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 15),
+                    // Action Buttons
+                    Row(
+                      children: [
+                        // Delete Button
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                            ),
+                            onPressed: _isLoading ? null : _deleteBook,
+                            child: _isLoading
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                          Colors.white),
+                                    ),
+                                  )
+                                : const Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.delete, size: 18),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Delete Book',
+                                        style: TextStyle(fontSize: 16),
+                                      ),
+                                    ],
+                                  ),
+                          ),
                         ),
-                        onPressed: _isLoading ? null : _submitForm,
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Text(
-                                'Update Book',
-                                style: TextStyle(fontSize: 16),
-                              ),
-                      ),
+                        const SizedBox(width: 16),
+                        // Update Button
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                            ),
+                            onPressed: _isLoading ? null : _submitForm,
+                            child: _isLoading
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  )
+                                : const Text(
+                                    'Update Book',
+                                    style: TextStyle(fontSize: 16),
+                                  ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

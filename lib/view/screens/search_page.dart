@@ -175,17 +175,19 @@ class _SearchPageState extends State<SearchPage> {
 
   void _initializeBooks() async {
     try {
-      // FIXED: Changed to load only 6 books per page from API
-      final response =
-          await Book.getAllBooksAsync(page: 1, perPage: booksPerPage);
-      if (response['success'] == true && response['books'] != null) {
+      // Load books from the correct API endpoint: http://16.171.11.8/api/books
+      // Load more books initially to have a good selection
+      final response = await Book.getAllBooksAsync(page: 1, perPage: 20);
+      if (response['success'] == true && response['data'] != null) {
         setState(() {
-          _allBooks = (response['books'] as List)
+          _allBooks = (response['data'] as List)
               .map((bookData) => Book.fromJson(bookData))
               .toList();
           _filteredBooks = List.from(_allBooks);
         });
       } else {
+        print(
+            'Failed to load books: ${response['message'] ?? 'Unknown error'}');
         setState(() {
           _allBooks = [];
           _filteredBooks = [];
@@ -198,15 +200,13 @@ class _SearchPageState extends State<SearchPage> {
         _filteredBooks = [];
       });
     }
-  }
+  } // Load more books when navigating to next page
 
-  // FIXED: Load more books when navigating to next page
   Future<void> _loadBooksForPage(int page) async {
     try {
-      final response =
-          await Book.getAllBooksAsync(page: page + 1, perPage: booksPerPage);
-      if (response['success'] == true && response['books'] != null) {
-        final newBooks = (response['books'] as List)
+      final response = await Book.getAllBooksAsync(page: page + 1, perPage: 20);
+      if (response['success'] == true && response['data'] != null) {
+        final newBooks = (response['data'] as List)
             .map((bookData) => Book.fromJson(bookData))
             .toList();
 
@@ -287,43 +287,46 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Widget _buildBookImage(String imageUrl, {double? width, double? height}) {
-    if (imageUrl.startsWith('http')) {
-      return CachedNetworkImage(
-        imageUrl: imageUrl,
+    if (imageUrl.isEmpty) {
+      return Image.asset(
+        'assets/images/logo.jpg',
         width: width,
         height: height,
         fit: BoxFit.cover,
-        placeholder: (context, url) =>
-            const Center(child: CircularProgressIndicator()),
-        errorWidget: (context, url, error) => Image.asset(
-          'assets/images/default_book.jpg',
-          width: width,
-          height: height,
-          fit: BoxFit.cover,
-        ),
       );
     }
 
-    String assetPath = imageUrl;
-    if (!imageUrl.startsWith('assets/')) {
-      assetPath = 'assets/images/$imageUrl';
-    }
-
-    return Image.asset(
-      assetPath,
-      width: width,
-      height: height,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) {
-        print('Error loading image: $error');
-        return Image.asset(
-          'assets/images/default_book.jpg',
-          width: width,
-          height: height,
-          fit: BoxFit.cover,
-        );
-      },
-    );
+    return imageUrl.startsWith('http')
+        ? CachedNetworkImage(
+            imageUrl: imageUrl,
+            width: width,
+            height: height,
+            fit: BoxFit.cover,
+            placeholder: (context, url) =>
+                const Center(child: CircularProgressIndicator()),
+            errorWidget: (context, url, error) => Image.asset(
+              'assets/images/logo.jpg',
+              width: width,
+              height: height,
+              fit: BoxFit.cover,
+            ),
+          )
+        : Image.asset(
+            imageUrl.startsWith('assets/')
+                ? imageUrl
+                : 'assets/images/$imageUrl',
+            width: width,
+            height: height,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Image.asset(
+                'assets/images/logo.jpg',
+                width: width,
+                height: height,
+                fit: BoxFit.cover,
+              );
+            },
+          );
   }
 
   @override
@@ -593,14 +596,6 @@ class _SearchPageState extends State<SearchPage> {
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                       SizedBox(height: 4),
-                                      Text(
-                                        'Rs. ${book.price}',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.green,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
                                     ],
                                   ),
                                 ),

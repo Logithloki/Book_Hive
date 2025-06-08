@@ -22,13 +22,46 @@ class Book {
   final String description;
   final String? image;
   final String? isbn;
-
   // Legacy support properties (mapped to new properties)
   int get bookid => int.tryParse(id ?? '0') ?? 0;
   String get name => title;
   int get numberOfPages => pages;
   String get forWhat => type;
-  String get coverUrl => image ?? cover;
+  String get coverUrl {
+    // Debug print to see what we're getting
+    print('DEBUG - Book.coverUrl: image="$image", cover="$cover"');
+
+    String imageUrl = image ?? cover;
+
+    // Return empty string for empty, null, or local file paths
+    if (imageUrl.isEmpty ||
+        imageUrl == 'null' ||
+        imageUrl.startsWith('file://') ||
+        imageUrl.startsWith('/data/')) {
+      print('DEBUG - Book.coverUrl: Returning empty - imageUrl="$imageUrl"');
+      return '';
+    }
+
+    // If it's already a complete URL, return as is
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+      print('DEBUG - Book.coverUrl: Returning existing URL - "$imageUrl"');
+      return imageUrl;
+    }
+
+    // Build full URL for relative paths
+    String fullUrl;
+    if (imageUrl.startsWith('/storage/')) {
+      fullUrl = 'http://16.171.11.8$imageUrl';
+    } else if (imageUrl.startsWith('covers/')) {
+      fullUrl = 'http://16.171.11.8/storage/$imageUrl';
+    } else {
+      // Assume it's just a filename
+      fullUrl = 'http://16.171.11.8/storage/covers/$imageUrl';
+    }
+
+    print('DEBUG - Book.coverUrl: Built URL - "$fullUrl"');
+    return fullUrl;
+  }
 
   // Define fillable properties according to your database schema
   static const List<String> fillable = [
@@ -90,7 +123,8 @@ class Book {
       payment: json['payment'] ?? 'pending',
       price: _parseDouble(json['price']),
       rentalDays: _parseInt(json['rental_days'] ?? json['rentalDays']),
-      exchangeCategory: json['exchange_category'] ?? json['exchangeCategory'] ?? '',
+      exchangeCategory:
+          json['exchange_category'] ?? json['exchangeCategory'] ?? '',
       userId: json['user_id']?.toString(),
       stock: _parseInt(json['stock']),
       description: json['description'] ?? '',
@@ -301,7 +335,7 @@ class Book {
   Future<Book?> updateAsync(Map<String, dynamic> updates) async {
     try {
       await Future.delayed(Duration(milliseconds: 400));
-      
+
       final updatedBook = copyWith(
         title: updates['title']?.toString(),
         author: updates['author']?.toString(),
@@ -314,7 +348,7 @@ class Book {
         price: updates['price'] is double ? updates['price'] : null,
         description: updates['description']?.toString(),
       );
-      
+
       print('Book "${title}" updated successfully');
       return updatedBook;
     } catch (e) {
@@ -353,6 +387,7 @@ class Book {
   static Future<Map<String, dynamic>> getBookAsync(int bookId) async {
     return await BookService.getBook(bookId);
   }
+
   // Static method to search books
   static Future<Map<String, dynamic>> searchBooksAsync(String query) async {
     return await BookService.searchBooks(query: query);
@@ -364,7 +399,7 @@ class Book {
     if (result['success'] == true && result['data'] != null) {
       final data = result['data'];
       List<dynamic> booksData;
-      
+
       if (data is List) {
         booksData = data;
       } else if (data is Map<String, dynamic> && data['data'] is List) {
@@ -372,7 +407,7 @@ class Book {
       } else {
         booksData = [];
       }
-      
+
       return booksData.map((json) => Book.fromJson(json)).toList();
     }
     return [];
@@ -384,7 +419,7 @@ class Book {
     if (result['success'] == true && result['data'] != null) {
       final data = result['data'];
       List<dynamic> booksData;
-      
+
       if (data is List) {
         booksData = data;
       } else if (data is Map<String, dynamic> && data['data'] is List) {
@@ -392,7 +427,7 @@ class Book {
       } else {
         booksData = [];
       }
-      
+
       return booksData.map((json) => Book.fromJson(json)).toList();
     }
     return [];
@@ -407,8 +442,14 @@ class Book {
       category: category,
       price: price,
       condition: condition,
+      type: type,
+      pages: pages,
+      year: year,
+      language: language,
       description: description,
       image: image,
+      rentalDays: rentalDays > 0 ? rentalDays : null,
+      exchangeCategory: exchangeCategory.isNotEmpty ? exchangeCategory : null,
     );
   }
 
@@ -430,8 +471,14 @@ class Book {
       category: category,
       price: price,
       condition: condition,
+      type: type,
+      pages: pages,
+      year: year,
+      language: language,
       description: description,
       image: image,
+      rentalDays: rentalDays > 0 ? rentalDays : null,
+      exchangeCategory: exchangeCategory.isNotEmpty ? exchangeCategory : null,
     );
   }
 

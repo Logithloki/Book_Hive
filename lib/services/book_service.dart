@@ -23,6 +23,7 @@ class BookService {
   static bool isValidCondition(String condition) {
     return validConditions.contains(condition);
   }
+
   // Get all books with optional filtering and search
   static Future<Map<String, dynamic>> getAllBooks({
     String? category,
@@ -36,7 +37,7 @@ class BookService {
       // Check connectivity before making request
       final connectivityService = ConnectivityService();
       final isConnected = await connectivityService.checkConnectivity();
-      
+
       if (!isConnected) {
         return {
           'success': false,
@@ -107,14 +108,15 @@ class BookService {
       };
 
       // Use the correct endpoint for my books
-      final uri = Uri.parse('$baseUrl/my-books').replace(queryParameters: queryParams);
-      
+      final uri =
+          Uri.parse('$baseUrl/my-books').replace(queryParameters: queryParams);
+
       print('Trying endpoint: $uri');
       final headers = await AuthService.getAuthHeaders();
       print('Request Headers: $headers');
 
       final response = await http.get(uri, headers: headers);
-      
+
       print('Response Status Code: ${response.statusCode}');
       print('Response Headers: ${response.headers}');
       print('Response Body: ${response.body}');
@@ -122,23 +124,26 @@ class BookService {
       // Check if we received an HTML response instead of JSON
       if (response.body.trim().startsWith('<!DOCTYPE') ||
           response.body.trim().startsWith('<html')) {
-        print('Received HTML response instead of JSON. Authentication may have failed.');
+        print(
+            'Received HTML response instead of JSON. Authentication may have failed.');
         return {
           'success': false,
           'message': 'Authentication failed. Please log in again.',
           'html_error': true,
         };
-      }      try {
+      }
+      try {
         final responseData = jsonDecode(response.body);
-        
+
         if (response.statusCode == 200) {
           print('Successfully got books from my-books endpoint');
           print('Response data structure: ${responseData.runtimeType}');
-          print('Response data keys: ${responseData is Map ? responseData.keys : 'Not a Map'}');
-          
+          print(
+              'Response data keys: ${responseData is Map ? responseData.keys : 'Not a Map'}');
+
           // Handle different response structures
           Map<String, dynamic> processedData;
-          
+
           if (responseData is List) {
             // If API returns direct array of books
             processedData = {
@@ -169,14 +174,15 @@ class BookService {
               'per_page': perPage,
             };
           }
-          
+
           return {
             'success': true,
             'data': processedData,
           };
         } else {
           // Extract error message from API response
-          final errorMessage = responseData['message'] ?? 'Failed to fetch your books';
+          final errorMessage =
+              responseData['message'] ?? 'Failed to fetch your books';
           print('API returned error status: ${response.statusCode}');
           print('Error message from API: $errorMessage');
           return {
@@ -192,7 +198,6 @@ class BookService {
           'message': 'Failed to parse API response: $jsonError',
         };
       }
-      
     } catch (e) {
       print('Network error in getMyBooks: $e');
       return {
@@ -236,8 +241,14 @@ class BookService {
     required String category,
     required double price,
     required String condition,
+    required String type,
+    required int pages,
+    required int year,
+    required String language,
     String? description,
     String? image,
+    int? rentalDays,
+    String? exchangeCategory,
   }) async {
     try {
       final response = await http.post(
@@ -250,8 +261,14 @@ class BookService {
           'category': category,
           'price': price,
           'condition': condition,
+          'type': type,
+          'pages': pages,
+          'year': year,
+          'language': language,
           'description': description,
           'image': image,
+          if (rentalDays != null) 'rental_days': rentalDays,
+          if (exchangeCategory != null) 'exchange_category': exchangeCategory,
         }),
       );
 
@@ -279,15 +296,21 @@ class BookService {
 
   // Update an existing book
   static Future<Map<String, dynamic>> updateBook({
-    required int bookId,
+    required dynamic bookId, // Can be int or String
     required String title,
     required String author,
     required String isbn,
     required String category,
     required double price,
     required String condition,
+    required String type,
+    required int pages,
+    required int year,
+    required String language,
     String? description,
     String? image,
+    int? rentalDays,
+    String? exchangeCategory,
   }) async {
     try {
       final response = await http.put(
@@ -300,8 +323,14 @@ class BookService {
           'category': category,
           'price': price,
           'condition': condition,
+          'type': type,
+          'pages': pages,
+          'year': year,
+          'language': language,
           if (description != null) 'description': description,
           if (image != null) 'image': image,
+          if (rentalDays != null) 'rental_days': rentalDays,
+          if (exchangeCategory != null) 'exchange_category': exchangeCategory,
         }),
       );
 
@@ -329,7 +358,8 @@ class BookService {
   }
 
   // Delete a book
-  static Future<Map<String, dynamic>> deleteBook(int bookId) async {
+  static Future<Map<String, dynamic>> deleteBook(dynamic bookId) async {
+    // Can be int or String
     try {
       final response = await http.delete(
         Uri.parse('$baseUrl/books/$bookId'),
@@ -688,7 +718,7 @@ class BookService {
 
   // Upload book image
   static Future<Map<String, dynamic>> uploadBookImage({
-    required int bookId,
+    required dynamic bookId, // Can be int or String
     required String imagePath,
   }) async {
     try {

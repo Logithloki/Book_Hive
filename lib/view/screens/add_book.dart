@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_const_constructors
+
 import 'package:flutter/material.dart';
 import 'dart:io'; // For image handling
 import 'package:image_picker/image_picker.dart';
@@ -26,14 +28,14 @@ class _AddBookPageState extends State<AddBookPage> {
   int _rentalDays = 7; // For Rental option, default 7 days
   String _exchangeCategory = 'Fiction'; // For Exchange option
   bool _isLoading = false;
-
   // Categories list for the dropdown
   final List<String> _categories = [
     'Fiction',
     'Non-Fiction',
     'Science',
     'History',
-    'Biography'
+    'Biography',
+    'Romance'
   ];
 
   // Conditions for the book
@@ -61,28 +63,24 @@ class _AddBookPageState extends State<AddBookPage> {
           'type': _for,
           'payment': 'cash', // Default payment method
           'description': '', // Default empty description
-        };
-
-        // Add listing type specific data
+        }; // Add listing type specific data
         switch (_for) {
           case 'Sell':
             bookData['price'] = _price;
-            bookData['rental_days'] = 0;
-            bookData['exchange_category'] = '';
+            bookData['rental_days'] = null;
+            bookData['exchange_category'] = null;
             break;
           case 'Rent':
             bookData['price'] = 0.0;
             bookData['rental_days'] = _rentalDays;
-            bookData['exchange_category'] = '';
+            bookData['exchange_category'] = null;
             break;
           case 'Exchange':
             bookData['price'] = 0.0;
-            bookData['rental_days'] = 0;
+            bookData['rental_days'] = null;
             bookData['exchange_category'] = _exchangeCategory;
             break;
-        }
-
-        // Call the book service to create the book
+        } // Call the book service to create the book
         final result = await BookService.createBook(
           title: bookData['title'],
           author: bookData['author'],
@@ -90,10 +88,38 @@ class _AddBookPageState extends State<AddBookPage> {
           category: bookData['category'],
           price: bookData['price'] as double,
           condition: bookData['condition'],
+          type: bookData['type'], // Pass the type field
+          pages: bookData['pages'],
+          year: bookData['year'],
+          language: bookData['language'],
           description: bookData['description'],
+          rentalDays: bookData['rental_days'],
+          exchangeCategory: bookData['exchange_category'],
         );
 
         if (result['success'] == true) {
+          // If book was created successfully and user selected an image, upload it
+          if (_image != null && result['data'] != null) {
+            final bookId =
+                result['data']['id'] ?? result['data']['book']?['id'];
+            if (bookId != null) {
+              try {
+                final imageResult = await BookService.uploadBookImage(
+                  bookId: int.parse(bookId.toString()),
+                  imagePath: _image!.path,
+                );
+
+                if (imageResult['success'] != true) {
+                  print('Image upload failed: ${imageResult['message']}');
+                  // Don't show error to user since book was created successfully
+                }
+              } catch (e) {
+                print('Error uploading image: $e');
+                // Don't show error to user since book was created successfully
+              }
+            }
+          }
+
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -350,9 +376,9 @@ class _AddBookPageState extends State<AddBookPage> {
                         _language = value ?? 'English';
                       },
                     ),
-                    const SizedBox(height: 20),
-
-                    // Listing Type (Sell, Exchange, Rent)
+                    const SizedBox(
+                        height:
+                            20), // Listing Type (Sell, Exchange, Rent) radio buttons
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -364,108 +390,20 @@ class _AddBookPageState extends State<AddBookPage> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Card(
-                                elevation: _for == 'Sell' ? 4 : 1,
-                                color: _for == 'Sell'
-                                    ? Theme.of(context)
-                                        .colorScheme
-                                        .primaryContainer
-                                    : null,
-                                child: RadioListTile<String>(
-                                  title: Column(
-                                    children: [
-                                      Icon(
-                                        Icons.sell,
-                                        size: 32,
-                                        color: _for == 'Sell'
-                                            ? Theme.of(context)
-                                                .colorScheme
-                                                .primary
-                                            : null,
-                                      ),
-                                      const Text('Sell'),
-                                    ],
-                                  ),
-                                  value: 'Sell',
-                                  groupValue: _for,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _for = value!;
-                                    });
-                                  },
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Card(
-                                elevation: _for == 'Rent' ? 4 : 1,
-                                color: _for == 'Rent'
-                                    ? Theme.of(context)
-                                        .colorScheme
-                                        .primaryContainer
-                                    : null,
-                                child: RadioListTile<String>(
-                                  title: Column(
-                                    children: [
-                                      Icon(
-                                        Icons.book,
-                                        size: 32,
-                                        color: _for == 'Rent'
-                                            ? Theme.of(context)
-                                                .colorScheme
-                                                .primary
-                                            : null,
-                                      ),
-                                      const Text('Rent'),
-                                    ],
-                                  ),
-                                  value: 'Rent',
-                                  groupValue: _for,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _for = value!;
-                                    });
-                                  },
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Card(
-                                elevation: _for == 'Exchange' ? 4 : 1,
-                                color: _for == 'Exchange'
-                                    ? Theme.of(context)
-                                        .colorScheme
-                                        .primaryContainer
-                                    : null,
-                                child: RadioListTile<String>(
-                                  title: Column(
-                                    children: [
-                                      Icon(
-                                        Icons.swap_horiz,
-                                        size: 32,
-                                        color: _for == 'Exchange'
-                                            ? Theme.of(context)
-                                                .colorScheme
-                                                .primary
-                                            : null,
-                                      ),
-                                      const Text('Exchange'),
-                                    ],
-                                  ),
-                                  value: 'Exchange',
-                                  groupValue: _for,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _for = value!;
-                                    });
-                                  },
-                                ),
-                              ),
-                            ),
-                          ],
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: ['Sell', 'Exchange', 'Rent'].map((option) {
+                            return RadioListTile<String>(
+                              title: Text(option),
+                              value: option,
+                              groupValue: _for,
+                              onChanged: (value) {
+                                setState(() {
+                                  _for = value!;
+                                });
+                              },
+                            );
+                          }).toList(),
                         ),
                       ],
                     ),

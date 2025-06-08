@@ -18,7 +18,6 @@ class _BookDetailsPageState extends State<BookDetailsPage> {
   bool _isLoadingContact = false;
   Map<String, dynamic>? _ownerInfo;
   bool _isAddingToCart = false;
-
   Future<void> _toggleContactInfo() async {
     if (_showContactInfo) {
       setState(() {
@@ -38,13 +37,18 @@ class _BookDetailsPageState extends State<BookDetailsPage> {
         return;
       }
 
+      print('Fetching contact info for user ID: ${widget.book.userId}');
       final result = await AuthService.getUserById(widget.book.userId!);
+      print('Contact info result: $result');
+
       if (result['success'] == true) {
         setState(() {
           _ownerInfo = result['data'];
           _showContactInfo = true;
         });
+        print('Contact info loaded successfully: $_ownerInfo');
       } else {
+        print('Failed to load contact info: ${result['message']}');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content:
@@ -52,6 +56,7 @@ class _BookDetailsPageState extends State<BookDetailsPage> {
         );
       }
     } catch (e) {
+      print('Error loading contact info: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error loading contact info: $e')),
       );
@@ -210,6 +215,22 @@ class _BookDetailsPageState extends State<BookDetailsPage> {
                 ],
               ),
             ],
+            if (_ownerInfo!['location'] != null &&
+                _ownerInfo!['location'].toString().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.location_on, color: Colors.blue),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Location: ${_ownerInfo!['location']}',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ] else
             const Text('Contact information not available'),
         ],
@@ -226,21 +247,7 @@ class _BookDetailsPageState extends State<BookDetailsPage> {
         Center(
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: CachedNetworkImage(
-              imageUrl: widget.book.coverUrl,
-              height: 250,
-              fit: BoxFit.cover,
-              placeholder: (context, url) => Container(
-                height: 250,
-                color: Colors.grey[300],
-                child: const Center(child: CircularProgressIndicator()),
-              ),
-              errorWidget: (context, url, error) => Image.asset(
-                'assets/images/Macbeth.jpg',
-                height: 250,
-                fit: BoxFit.cover,
-              ),
-            ),
+            child: _buildBookImage(widget.book.coverUrl, height: 250),
           ),
         ),
         const SizedBox(height: 10), // Left-aligned Book Details
@@ -354,21 +361,7 @@ class _BookDetailsPageState extends State<BookDetailsPage> {
               child: Center(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: CachedNetworkImage(
-                    imageUrl: widget.book.coverUrl,
-                    height: 200,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(
-                      height: 200,
-                      color: Colors.grey[300],
-                      child: const Center(child: CircularProgressIndicator()),
-                    ),
-                    errorWidget: (context, url, error) => Image.asset(
-                      'assets/images/default_book.jpg',
-                      height: 200,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
+                  child: _buildBookImage(widget.book.coverUrl, height: 200),
                 ),
               ),
             ),
@@ -552,24 +545,10 @@ class _BookDetailsPageState extends State<BookDetailsPage> {
                         children: [
                           ClipRRect(
                             borderRadius: BorderRadius.circular(4),
-                            child: CachedNetworkImage(
-                              imageUrl: suggestedBook.coverUrl,
+                            child: _buildBookImage(
+                              suggestedBook.coverUrl,
                               width: 120,
                               height: 130,
-                              fit: BoxFit.cover,
-                              placeholder: (context, url) => Container(
-                                width: 120,
-                                height: 130,
-                                color: Colors.grey[300],
-                                child: const Center(
-                                    child: CircularProgressIndicator()),
-                              ),
-                              errorWidget: (context, url, error) => Image.asset(
-                                'assets/images/default_book.jpg',
-                                width: 120,
-                                height: 130,
-                                fit: BoxFit.cover,
-                              ),
                             ),
                           ),
                           const SizedBox(height: 5),
@@ -622,5 +601,52 @@ class _BookDetailsPageState extends State<BookDetailsPage> {
         ],
       ),
     );
+  }
+
+  Widget _buildBookImage(String imageUrl, {double? width, double? height}) {
+    if (imageUrl.isEmpty) {
+      return Image.asset(
+        'assets/images/logo.jpg',
+        width: width,
+        height: height,
+        fit: BoxFit.cover,
+      );
+    }
+
+    return imageUrl.startsWith('http')
+        ? CachedNetworkImage(
+            imageUrl: imageUrl,
+            width: width,
+            height: height,
+            fit: BoxFit.cover,
+            placeholder: (context, url) => Container(
+              width: width,
+              height: height,
+              color: Colors.grey[300],
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+            errorWidget: (context, url, error) => Image.asset(
+              'assets/images/logo.jpg',
+              width: width,
+              height: height,
+              fit: BoxFit.cover,
+            ),
+          )
+        : Image.asset(
+            imageUrl.startsWith('assets/')
+                ? imageUrl
+                : 'assets/images/$imageUrl',
+            width: width,
+            height: height,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Image.asset(
+                'assets/images/logo.jpg',
+                width: width,
+                height: height,
+                fit: BoxFit.cover,
+              );
+            },
+          );
   }
 }

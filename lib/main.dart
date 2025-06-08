@@ -2,6 +2,7 @@ import 'package:book_store/models/book.dart';
 import 'package:book_store/view/screens/get_started.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/scheduler.dart';
 
 // Import your theme manager
 import 'package:book_store/themes/theme_manager.dart';
@@ -9,9 +10,17 @@ import 'package:book_store/themes/theme_manager.dart';
 final List<Book> cartManager = []; // Global cart list
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Create the theme manager
+  final themeManager = ThemeManager();
+
+  // Start listening for system theme changes
+  themeManager.listenToSystemThemeChanges();
+
   runApp(
     ChangeNotifierProvider(
-      create: (_) => ThemeManager(),
+      create: (_) => themeManager,
       child: const MyApp(),
     ),
   );

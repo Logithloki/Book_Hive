@@ -50,23 +50,10 @@ class BookSection extends StatelessWidget {
                       children: <Widget>[
                         ClipRRect(
                           borderRadius: BorderRadius.circular(4),
-                          child: Image.network(
+                          child: _buildBookImage(
                             book.coverUrl,
                             width: 120,
                             height: 150,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                width: 120,
-                                height: 150,
-                                color: Colors.grey[300],
-                                child: const Icon(
-                                  Icons.book,
-                                  size: 40,
-                                  color: Colors.grey,
-                                ),
-                              );
-                            },
                           ),
                         ),
                         Expanded(
@@ -93,5 +80,76 @@ class BookSection extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildBookImage(String imageUrl, {double? width, double? height}) {
+    print('DEBUG - BookSection _buildBookImage: imageUrl = "$imageUrl"');
+
+    if (imageUrl.isEmpty) {
+      print('DEBUG - BookSection: Empty imageUrl, showing book icon');
+      return Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: Colors.grey[300],
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: const Icon(
+          Icons.book,
+          size: 40,
+          color: Colors.grey,
+        ),
+      );
+    }
+
+    return imageUrl.startsWith('http')
+        ? Image.network(
+            imageUrl,
+            width: width,
+            height: height,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              print(
+                  'DEBUG - BookSection: Network image failed for $imageUrl: $error');
+              return Container(
+                width: width,
+                height: height,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Icon(
+                  Icons.book,
+                  size: 40,
+                  color: Colors.grey,
+                ),
+              );
+            },
+          )
+        : Image.asset(
+            imageUrl.startsWith('assets/')
+                ? imageUrl
+                : 'assets/images/$imageUrl',
+            width: width,
+            height: height,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              print(
+                  'DEBUG - BookSection: Asset image failed for $imageUrl: $error');
+              return Container(
+                width: width,
+                height: height,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Icon(
+                  Icons.book,
+                  size: 40,
+                  color: Colors.grey,
+                ),
+              );
+            },
+          );
   }
 }
